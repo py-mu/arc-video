@@ -1,17 +1,82 @@
+buildscript {
+    ext {
+        mindustryVersion = 'v146'
+        gdxVideoVersion = '1.3.2-SNAPSHOT'
+        arcHash = property("archash")
+        localArc = !project.hasProperty("release") && new File(rootDir.parent, 'Arc').exists() && !project.hasProperty("noLocalArc")
+
+        arcModule = { String name ->
+            //skip to last submodule
+            name = name.substring(name.lastIndexOf(':') + 1)
+            return "com.github.Anuken${ext.localArc ? "" : ".Arc"}:$name:$ext.arcHash"
+        }
+    }
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        gradlePluginPortal()
+        google()
+        maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    }
+    dependencies {
+        classpath "org.docstr:gwt-gradle-plugin:$gwtPluginVersion"
+        classpath "com.android.tools.build:gradle:$androidPluginVersion"
+        classpath "com.mobidevelop.robovm:robovm-gradle-plugin:$robovmVersion"
+        classpath "com.badlogicgames.gdx:gdx-jnigen-gradle:2.4.1"
+    }
+}
 plugins {
     id 'java'
 }
+apply plugin: "java-library"
 
-group = 'com.pymu'
-version = '1.0-SNAPSHOT'
 
-repositories {
-    mavenCentral()
+allprojects {
+    group = 'com.pymu'
+    version = '1.0-SNAPSHOT'
+    // 设置编译环境
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+    tasks.withType(Test).configureEach {
+        systemProperty 'file.encoding', 'UTF-8'
+    }
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        gradlePluginPortal()
+        google()
+        maven { url "https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository" }
+        maven { url 'https://www.jitpack.io' }
+        maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
+        maven { url 'https://oss.sonatype.org/content/repositories/releases' }
+    }
+    dependencies {
+        api "com.badlogicgames.gdx:gdx:$gdxVersion"
+        implementation "com.github.Anuken.Arc:arc-core:$mindustryVersion"
+//    implementation files('libs/Mindustry.jar')
+        // libgdx-video core  repo：https://github.com/libgdx/gdx-video
+        implementation "com.badlogicgames.gdx-video:gdx-video:$gdxVideoVersion"
+
+        testImplementation platform('org.junit:junit-bom:5.10.0')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+    }
 }
 
-dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+String checkCrossPrefix(String crossToolchain) {
+    def tc = crossToolchain
+//    if (tc == null || System.getProperty("os.name").startsWith("Win")) return ""
+    def result = project.exec {
+        ignoreExitValue = true
+        commandLine "bash", "-l", "-c",
+                "(command -v $tc-g++ && command -v $tc-ar && command -v $tc-ld)>/dev/null"
+    }
+    if (result.getExitValue() == 0) {
+        return "$tc-"
+    }
+    return ""
 }
 
 test {
