@@ -41,7 +41,10 @@ allprojects {
     tasks.withType(Test).configureEach {
         systemProperty 'file.encoding', 'UTF-8'
     }
-
+    /**
+     * 测试 需要先进行jar打包
+     */
+    File testLib = file("${buildDir}/libs/${name}-${version}.jar")
     repositories {
         mavenLocal()
         mavenCentral()
@@ -53,15 +56,28 @@ allprojects {
         maven { url 'https://oss.sonatype.org/content/repositories/releases' }
     }
     dependencies {
-        api "com.badlogicgames.gdx:gdx:$gdxVersion"
         implementation "com.github.Anuken.Arc:arc-core:$mindustryVersion"
-//    implementation files('libs/Mindustry.jar')
         // libgdx-video core  repo：https://github.com/libgdx/gdx-video
+        implementation "com.badlogicgames.gdx:gdx:$gdxVersion"
         implementation "com.badlogicgames.gdx-video:gdx-video:$gdxVideoVersion"
+
+        testImplementation files('lib/Mindustry.jar')
+        testImplementation 'junit:junit:4.13.1'
+        if(testLib.exists()){
+            testImplementation files(testLib.path)
+        }else{
+            print("cant not load jar. ${testLib.path}")
+            print("you should run jar executeTask before")
+        }
+//
     }
 }
 
-
+/**
+ * 判断是否是windows环境（但是windows环境编译ffmpeg异常困难，所以这里使用wsl进行编译）
+ * @param crossToolchain
+ * @return
+ */
 String checkCrossPrefix(String crossToolchain) {
     def tc = crossToolchain
 //    if (tc == null || System.getProperty("os.name").startsWith("Win")) return ""
@@ -147,15 +163,6 @@ registerBuild 'MacosARM64', null, '--enable-cross-compile', '--arch=arm64', '--t
 apply plugin: "com.badlogicgames.gdx.gdx-jnigen"
 
 jnigen {
-    if (System.getProperty("os.name").toLowerCase().contains("windows")) {
-        // 在 Windows 系统上,使用 WSL 环境运行 jnigen
-        String[] cmd = ["wsl", "bash", "-c", "your_jnigen_command"]
-        Process process = Runtime.getRuntime().exec(cmd)
-        // 处理 jnigen 的输出结果
-    } else {
-        // 在其他系统上,直接运行 jnigen
-        jnigen.build();
-    }
     // Your shared library name
     //noinspection GroovyAccessibility
     sharedLibName = "arc-video-desktop"
@@ -171,6 +178,7 @@ jnigen {
     def genLibs = { String buildName ->
         String libraries = ''
         String absPath = file("FFmpeg/build-$buildName").absolutePath
+        absPath = absPath.replace('D:\\workplace\\Java\\arc-video\\FFmpeg\\', '/mnt/d/workplace/java/arc-video/FFmpeg/')
         libraries += " -L$absPath/libavcodec"
         libraries += " -L$absPath/libavformat"
         libraries += " -L$absPath/libavutil"
@@ -249,7 +257,5 @@ tasks.register('jnigenBuildMacosAll') {
 
 jar {
     from fileTree("libs").files
-}
-test {
-    useJUnitPlatform()
+
 }
