@@ -24,7 +24,7 @@ import arc.scene.ui.Dialog;
 import arc.scene.ui.TextField;
 import arc.scene.ui.layout.Scl;
 import arc.struct.ObjectSet;
-import arc.struct.Seq;
+import arc.util.Align;
 
 
 public class ArcApplication extends ApplicationCore {
@@ -32,6 +32,7 @@ public class ArcApplication extends ApplicationCore {
     public static Font def;
     private static final String mainFont = "fonts/font.woff";
     public static ScaledNinePatchDrawable windowEmpty;
+    static Dialog dialog;
 
     private static final ObjectSet<String> unscaled = ObjectSet.with("iconLarge");
 
@@ -43,12 +44,16 @@ public class ArcApplication extends ApplicationCore {
         Core.assets = new AssetManager();
         Core.batch = new SortedSpriteBatch();
         Core.scene = new Scene();
+        // 加载贴图资源
         Core.assets.load(new AssetDescriptor<>("sprites/sprites.aatls", TextureAtlas.class)).loaded = t -> Core.atlas = t;
         loadDefaultFont();
         add(new TestUi());
 
     }
 
+    /**
+     * 初始化一个默认的字体
+     */
     public void loadDefaultFont() {
         Core.assets.setLoader(FreeTypeFontGenerator.class, new FreeTypeFontGeneratorLoader(Core.files::internal));
         Core.assets.setLoader(Font.class, null, new FreetypeFontLoader(Core.files::internal) {
@@ -87,6 +92,10 @@ public class ArcApplication extends ApplicationCore {
         }};
     }
 
+    /**
+     * 给监听器装载模块，如果是一个装载对象还需要加入到异步加载队列中
+     * @param module loadable
+     */
     @Override
     public void add(ApplicationListener module) {
         super.add(module);
@@ -97,36 +106,42 @@ public class ArcApplication extends ApplicationCore {
         }
     }
 
+    /**
+     * 事件循环
+     */
     @Override
     public void update() {
         super.update();
         try {
+            // 初始化队列(执行异步 load)，不然你的资源无法加载
             Core.assets.update();
         } catch (Exception ignored) {
         }
     }
 
     public static class TestUi implements ApplicationListener, Loadable {
-        Dialog dialog;
 
 
+        /**
+         * UI被装载器加载时，可以初始化内容了，比如设置页面
+         */
         @Override
         public void loadSync() {
-            def.getData().markupEnabled = true;
-            def.setOwnsTexture(true);
-            Core.assets.getAll(Font.class, new Seq<>()).each(font -> font.setUseIntegerPositions(true));
-            Core.input.addProcessor(Core.scene);
-            int[] insets = Core.graphics.getSafeInsets();
-            Core.scene.marginLeft = insets[0];
-            Core.scene.marginRight = insets[1];
-            Core.scene.marginTop = insets[2];
-            Core.scene.marginBottom = insets[3];
             loadStyle();
-            dialog = new Dialog("arc-video");
-            dialog.add(dialog);
-            Core.scene.add(dialog);
+            dialog = new Dialog("arc-video"){{
+                // 设置全屏显示
+                setFillParent(true);
+                // 设置页面标题居中
+                title.setAlignment(Align.center);
+            }};
+            // 往屏幕中添加dialog
+            Core.scene.root.addChild(dialog);
+            dialog.show();
         }
 
+        /**
+         * 初始化dialog默认样式， 用于创建一个初始窗口
+         */
         public void loadStyle() {
             whiteui = (TextureRegionDrawable) Core.atlas.drawable("whiteui");
             windowEmpty = (ScaledNinePatchDrawable) Core.atlas.drawable("window-empty");
@@ -139,13 +154,13 @@ public class ArcApplication extends ApplicationCore {
             arc.Core.scene.addStyle(Dialog.DialogStyle.class, defaultDialog);
         }
 
+        /**
+         * 渲染的事件循环，
+         */
         @Override
         public void update() {
             Core.scene.act();
             Core.scene.draw();
-            if (dialog != null) {
-                dialog.show();
-            }
             if (Core.input.keyTap(KeyCode.mouseLeft) && Core.scene.hasField()) {
                 Element e = Core.scene.hit(Core.input.mouseX(), Core.input.mouseY(), true);
                 if (!(e instanceof TextField)) {
