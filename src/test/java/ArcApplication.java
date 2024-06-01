@@ -10,6 +10,7 @@ import arc.freetype.FreeTypeFontGenerator.FreeTypeFontParameter;
 import arc.freetype.FreeTypeFontGeneratorLoader;
 import arc.freetype.FreetypeFontLoader;
 import arc.freetype.FreetypeFontLoader.FreeTypeFontLoaderParameter;
+import arc.graphics.Camera;
 import arc.graphics.Color;
 import arc.graphics.Texture;
 import arc.graphics.g2d.Font;
@@ -25,6 +26,8 @@ import arc.scene.ui.TextField;
 import arc.scene.ui.layout.Scl;
 import arc.struct.ObjectSet;
 import arc.util.Align;
+import com.pymu.arc.video.basic.VideoPlayer;
+import com.pymu.arc.video.ui.VideoViewer;
 
 
 public class ArcApplication extends ApplicationCore {
@@ -44,6 +47,7 @@ public class ArcApplication extends ApplicationCore {
         Core.assets = new AssetManager();
         Core.batch = new SortedSpriteBatch();
         Core.scene = new Scene();
+        Core.camera = new Camera();
         // 加载贴图资源
         Core.assets.load(new AssetDescriptor<>("sprites/sprites.aatls", TextureAtlas.class)).loaded = t -> Core.atlas = t;
         loadDefaultFont();
@@ -94,6 +98,7 @@ public class ArcApplication extends ApplicationCore {
 
     /**
      * 给监听器装载模块，如果是一个装载对象还需要加入到异步加载队列中
+     *
      * @param module loadable
      */
     @Override
@@ -120,7 +125,7 @@ public class ArcApplication extends ApplicationCore {
     }
 
     public static class TestUi implements ApplicationListener, Loadable {
-
+        VideoPlayer player;
 
         /**
          * UI被装载器加载时，可以初始化内容了，比如设置页面
@@ -128,14 +133,23 @@ public class ArcApplication extends ApplicationCore {
         @Override
         public void loadSync() {
             loadStyle();
-            dialog = new Dialog("arc-video"){{
+            dialog = new Dialog("arc-video") {{
                 // 设置全屏显示
                 setFillParent(true);
                 // 设置页面标题居中
                 title.setAlignment(Align.center);
             }};
+            dialog.add(new VideoViewer(new Fi("src/test/resources/test.webm")));
             // 往屏幕中添加dialog
             Core.scene.root.addChild(dialog);
+//            player = VideoPlayerFactory.createVideoPlayer();
+//            try {
+//                player.play();
+//                player.setLooping(true);
+//
+//            } catch (FileNotFoundException e) {
+//                throw new RuntimeException(e);
+//            }
             dialog.show();
         }
 
@@ -160,12 +174,16 @@ public class ArcApplication extends ApplicationCore {
         @Override
         public void update() {
             Core.scene.act();
+
             Core.scene.draw();
             if (Core.input.keyTap(KeyCode.mouseLeft) && Core.scene.hasField()) {
                 Element e = Core.scene.hit(Core.input.mouseX(), Core.input.mouseY(), true);
                 if (!(e instanceof TextField)) {
                     Core.scene.setKeyboardFocus(null);
                 }
+            }
+            if (player != null && player.isBuffered()) {
+                player.update();
             }
         }
     }

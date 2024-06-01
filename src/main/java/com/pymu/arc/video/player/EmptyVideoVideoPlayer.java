@@ -2,15 +2,14 @@ package com.pymu.arc.video.player;
 
 import arc.files.Fi;
 import arc.graphics.Texture;
-import com.badlogic.gdx.video.VideoPlayer;
-import com.pymu.arc.video.basic.VideoPlayerInterface;
+import com.pymu.arc.video.basic.VideoPlayer;
 
 import java.io.FileNotFoundException;
 
 /**
  * 构建一个空的播放器
  */
-public class EmptyVideoVideoPlayer implements VideoPlayerInterface {
+public class EmptyVideoVideoPlayer implements VideoPlayer {
     /**
      * This function will prepare the VideoPlayer to play the given file. If a video is already played, it will be stopped, and
      * the new video will be loaded. The video starts playing as soon as it is loaded.
@@ -33,6 +32,14 @@ public class EmptyVideoVideoPlayer implements VideoPlayerInterface {
     @Override
     public boolean update() {
         return false;
+    }
+
+    /**
+     * 渲染视频帧
+     */
+    @Override
+    public void renderVideoFrame() {
+
     }
 
     /**
@@ -101,14 +108,14 @@ public class EmptyVideoVideoPlayer implements VideoPlayerInterface {
      * @param listener The listener to set
      */
     @Override
-    public void setOnCompletionListener(CompletionListener listener) {
+    public void setOnCompletionListener(VideoCompletionListener listener) {
 
     }
 
     /**
      * This will return the width of the currently playing video.
      * <p>
-     * This function cannot be called until the {@link VideoPlayer.VideoSizeListener} has been called for the currently playing video. If this
+     * This function cannot be called until the {@link com.badlogic.gdx.video.VideoPlayer.VideoSizeListener} has been called for the currently playing video. If this
      * callback has not been set, a good alternative is to wait until the {@link #isBuffered} function returns true, which
      * guarantees the availability of the videoSize.
      *
@@ -122,7 +129,7 @@ public class EmptyVideoVideoPlayer implements VideoPlayerInterface {
     /**
      * This will return the height of the currently playing video.
      * <p>
-     * This function cannot be called until the {@link VideoPlayer.VideoSizeListener} has been called for the currently playing video. If this
+     * This function cannot be called until the {@link com.badlogic.gdx.video.VideoPlayer.VideoSizeListener} has been called for the currently playing video. If this
      * callback has not been set, a good alternative is to wait until the {@link #isBuffered} function returns true, which
      * guarantees the availability of the videoSize.
      *
@@ -200,16 +207,6 @@ public class EmptyVideoVideoPlayer implements VideoPlayerInterface {
      */
     @Override
     public void setFilter(Texture.TextureFilter minFilter, Texture.TextureFilter magFilter) {
-
-    }
-
-    @Override
-    public boolean isDisabled() {
-        return false;
-    }
-
-    @Override
-    public void setDisabled(boolean isDisabled) {
 
     }
 }

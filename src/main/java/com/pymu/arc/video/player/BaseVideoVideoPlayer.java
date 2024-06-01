@@ -1,15 +1,19 @@
 package com.pymu.arc.video.player;
 
 
-import arc.Core;
 import arc.audio.Music;
 import arc.files.Fi;
+import arc.graphics.Blending;
+import arc.graphics.Color;
+import arc.graphics.Gl;
 import arc.graphics.Texture;
+import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.TextureRegion;
+import arc.scene.Element;
 import com.badlogic.gdx.utils.Null;
-import com.pymu.arc.video.basic.AbstractVideoVideoPlayer;
 import com.pymu.arc.video.basic.LibraryLoader;
-import com.pymu.arc.video.basic.VideoPlayerInterface;
 import com.pymu.arc.video.basic.VideoDecoderBuffers;
+import com.pymu.arc.video.basic.VideoPlayer;
 import com.pymu.arc.video.decoder.VideoDecoder;
 
 import java.io.BufferedInputStream;
@@ -19,37 +23,113 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 
-public abstract class BaseVideoVideoPlayer extends AbstractVideoVideoPlayer implements VideoPlayerInterface {
+public abstract class BaseVideoVideoPlayer extends Element implements VideoPlayer {
+    /**
+     * 视频解码器
+     */
     protected VideoDecoder decoder;
+    /**
+     * 视频每一帧的纹理
+     */
     protected Texture texture;
+    /**
+     * 视频的音频文件
+     */
     protected Music audio;
+    /**
+     * 开始时间
+     */
     protected long startTime = 0;
+    /**
+     * 显示已经解码的帧
+     */
     protected boolean showAlreadyDecodedFrame = false;
 
+    /**
+     * 暂停状态？
+     */
     protected boolean paused = false;
+    /**
+     * 循环播放？
+     */
     protected boolean looping = false;
+    /**
+     * 是否是第一帧？
+     */
     protected boolean isFirstFrame = true;
+    /**
+     * 暂停时的，已经播放的时间
+     */
     protected long timeBeforePause = 0;
 
+    /**
+     * 视频宽高
+     */
     protected int currentVideoWidth, currentVideoHeight;
+    /**
+     * 视频帧长度
+     */
     protected int videoBufferWidth;
+    /**
+     * 视频播放的监听器
+     */
     protected VideoSizeListener sizeListener;
-    protected CompletionListener completionListener;
+    /**
+     * 视频播放结束监听器
+     */
+    protected VideoCompletionListener videoCompletionListener;
+    /**
+     * 当前播放的文件
+     */
     protected Fi currentFile;
 
+    /**
+     * 输入流
+     */
     protected BufferedInputStream inputStream;
+    /**
+     * 读取的字节通道
+     */
     protected ReadableByteChannel fileChannel;
 
+    /**
+     * 视频是否在播放
+     */
     protected boolean playing = false;
+    /**
+     * 视频显示纹理区域
+     */
+    protected final TextureRegion region = new TextureRegion();
+
+    protected Texture.TextureFilter minFilter = Texture.TextureFilter.linear;
+    protected Texture.TextureFilter magFilter = Texture.TextureFilter.linear;
+
+
+    public void setFilter(Texture.TextureFilter minFilter, Texture.TextureFilter magFilter) {
+        if (this.minFilter == minFilter && this.magFilter == magFilter) return;
+        this.minFilter = minFilter;
+        this.magFilter = magFilter;
+        Texture texture = getTexture();
+        if (texture == null) return;
+        texture.setFilter(minFilter, magFilter);
+    }
 
     /**
+     * 从 VideoDecoder 实例中检索其音频，当前的方法是给视频设置音频( TODO 无法实现音频转码)
+     *
      * @param decoder       解码器
      * @param audioBuffer   音频流
      * @param audioChannels 通道
      * @param sampleRate    采样率
      * @return 音乐
      */
-    abstract Music createMusic(VideoDecoder decoder, ByteBuffer audioBuffer, int audioChannels, int sampleRate);
+    Music getMusic(VideoDecoder decoder, ByteBuffer audioBuffer, int audioChannels, int sampleRate){
+        return null;
+    }
+
+    void setMusic(Music music){
+        audio = music;
+    }
 
     /**
      * 获取视频宽度
@@ -79,6 +159,7 @@ public abstract class BaseVideoVideoPlayer extends AbstractVideoVideoPlayer impl
         }
         if (!LibraryLoader.isLoaded()) {
             LibraryLoader.loadLibraries();
+            LibraryLoader.setDebugLogging(true);
         }
         if (decoder != null) {
             // Do all the cleanup
@@ -93,12 +174,11 @@ public abstract class BaseVideoVideoPlayer extends AbstractVideoVideoPlayer impl
         VideoDecoderBuffers buffers;
         try {
             buffers = decoder.loadStream(this::readFileContents);
-
             if (buffers != null) {
                 ByteBuffer audioBuffer = buffers.getAudioBuffer();
                 if (audioBuffer != null) {
                     if (audio != null) audio.dispose();
-                    audio = createMusic(decoder, audioBuffer, buffers.getAudioChannels(), buffers.getAudioSampleRate());
+                    audio = getMusic(decoder, audioBuffer, buffers.getAudioChannels(), buffers.getAudioSampleRate());
                 }
                 currentVideoWidth = buffers.getVideoWidth();
                 currentVideoHeight = buffers.getVideoHeight();
@@ -158,8 +238,7 @@ public abstract class BaseVideoVideoPlayer extends AbstractVideoVideoPlayer impl
                         texture.setFilter(minFilter, magFilter);
                     }
                     texture.bind();
-                    Core.gl.glTexImage2D(Core.gl20.GL_TEXTURE_2D, 0, Core.gl20.GL_RGB, getTextureWidth(), getTextureHeight(), 0, Core.gl20.GL_RGB,
-                            Core.gl20.GL_UNSIGNED_BYTE, videoData);
+                    Gl.texImage2D(Gl.texture2d, 0, Gl.rgb, getTextureWidth(), getTextureHeight(), 0, Gl.rgb, Gl.unsignedByte, videoData);
                     newFrame = true;
                 } else if (isFirstFrame) {
                     return false;
@@ -175,13 +254,13 @@ public abstract class BaseVideoVideoPlayer extends AbstractVideoVideoPlayer impl
                     return false;
                 } else {
                     playing = false;
-                    if (completionListener != null) {
-                        completionListener.onCompletionListener(currentFile);
+                    if (videoCompletionListener != null) {
+                        videoCompletionListener.onCompletionListener(currentFile);
                     }
                     return false;
                 }
             }
-
+            renderVideoFrame();
             isFirstFrame = false;
             long currentVideoTime = System.currentTimeMillis() - startTime;
             long millisecondsAhead = (long) getCurrentTimestamp() - currentVideoTime;
@@ -189,6 +268,19 @@ public abstract class BaseVideoVideoPlayer extends AbstractVideoVideoPlayer impl
             return newFrame;
         }
         return false;
+    }
+
+    public void renderVideoFrame() {
+        // 渲染视频帧
+        region.set(texture);
+        float pz = Draw.z();
+        Draw.z(999);
+        Draw.color(Color.valueOf("ffffff"), 1f);
+        Draw.blend(Blending.additive);
+        Draw.rect(region, 100, 100, 0f);
+        Draw.blend();
+        Draw.color();
+        Draw.z(999);
     }
 
 
@@ -277,8 +369,8 @@ public abstract class BaseVideoVideoPlayer extends AbstractVideoVideoPlayer impl
     }
 
 
-    public void setOnCompletionListener(CompletionListener listener) {
-        completionListener = listener;
+    public void setOnCompletionListener(VideoCompletionListener listener) {
+        videoCompletionListener = listener;
     }
 
 
