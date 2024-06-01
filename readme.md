@@ -1,4 +1,4 @@
-
+配置好环境后再test中运行ArcApplication
 
 
 fix
